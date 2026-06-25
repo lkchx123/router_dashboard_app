@@ -1,0 +1,55 @@
+name: 00-Scaffold-OneTime
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  scaffold-android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: 生成android工程并配置联网权限
+        run: |
+          flutter create --platforms=android .
+          MANIFEST=android/app/src/main/AndroidManifest.xml
+          sed -i '/<manifest /a\    <uses-permission android:name="android.permission.INTERNET" />' "$MANIFEST"
+          sed -i 's/<application/<application\n        android:usesCleartextTraffic="true"/' "$MANIFEST"
+          cat "$MANIFEST"
+
+      - name: 提交回仓库
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add android
+          git commit -m "chore: 生成android工程文件并配置联网权限" || echo "无变化，跳过提交"
+          git pull --rebase origin master
+          git push
+
+  scaffold-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: 生成windows工程
+        run: flutter create --platforms=windows .
+
+      - name: 提交回仓库
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add windows
+          git commit -m "chore: 生成windows工程文件" || echo "无变化，跳过提交"
+          git pull --rebase origin master
+          git push
