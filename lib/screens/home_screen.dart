@@ -25,7 +25,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   late RouterApi _api;
   Timer? _timer;
   List<Device> _devices = [];
@@ -44,6 +44,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _api = RouterApi(
       baseUrl: widget.config.routerUrl,
       username: widget.config.username,
@@ -54,9 +55,20 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _timer?.cancel();
+    // 离开看板页前尝试登出，释放路由器并发会话名额
+    _api.logout();
     _api.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // App被彻底关闭/进入后台太久时，尽力登出，避免占着会话名额
+    if (state == AppLifecycleState.detached || state == AppLifecycleState.paused) {
+      _api.logout();
+    }
   }
 
   Future<void> _bootstrap() async {
@@ -96,6 +108,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _lastUpdate = DateTime.now();
         _error = null;
         _loading = false;
+        _clampOfflinePage();
       });
     } on AuthExpiredError catch (e) {
       try {
@@ -117,6 +130,22 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  /// 数据刷新后离线设备总数可能变少，确保当前页不会越界、翻不回去
+  void _clampOfflinePage() {
+    final excludedMacs = {
+      if (widget.config.lockMac != null) widget.config.lockMac!,
+      if (widget.config.subRouterMac != null) widget.config.subRouterMac!,
+    };
+    final offlineCount = _devices
+        .where((d) => !excludedMacs.contains(d.mac) && !d.active)
+        .length;
+    final totalPages = (offlineCount / _pageSize).ceil().clamp(1, 999);
+    if (_offlinePage > totalPages - 1) {
+      _offlinePage = totalPages - 1;
+    }
+    if (_offlinePage < 0) _offlinePage = 0;
+  }
+
   CustomMacEntry? _customEntry(String mac) {
     final e = widget.config.customNames.where((c) => c.mac == mac);
     return e.isEmpty ? null : e.first;
@@ -130,6 +159,18 @@ class _HomeScreenState extends State<HomeScreen> {
         widget.config.favoriteMacs.remove(d.mac);
       } else {
         widget.config.favoriteMacs.add(d.mac);
+      }
+    });
+    widget.onConfigChanged(widget.config);
+    StorageService.save(widget.config);
+  }
+
+  void _togglePermanent(Device d) {
+    setState(() {
+      if (widget.config.permanentMacs.contains(d.mac)) {
+        widget.config.permanentMacs.remove(d.mac);
+      } else {
+        widget.config.permanentMacs.add(d.mac);
       }
     });
     widget.onConfigChanged(widget.config);
@@ -383,22 +424,15 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {});
   }
 
-  void _showPersonalDetail(List<Device> onlineDevices) {
-    final personal =
-        onlineDevices.where((d) => !widget.config.permanentMacs.contains(d.mac)).toList();
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('个人设备在线详情'),
-        content: Text(personal.isEmpty
-            ? '当前无个人设备在线'
-            : personal.map((d) => '· ${_displayName(d)} (${d.mac})').join('\n')),
-        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('知道了'))],
-      ),
-    );
-  }
-
   String _fmtShort(DateTime t) => formatExactTime(t);
+
+  /// 门锁固件每约5分钟自动联网一次，AccessRecord 只是周期内某次心跳，
+  /// 离线时真实最后在线时刻应推后约5分钟再展示，避免误导。
+  DateTime? _lockAdjustedTime(Device? lockDevice) {
+    if (lockDevice?.accessTime == null) return null;
+    if (lockDevice!.active) return lockDevice.accessTime;
+    return lockDevice.accessTime!.add(const Duration(minutes: 5));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -437,8 +471,11 @@ class _HomeScreenState extends State<HomeScreen> {
       ..sort((a, b) => t(b).compareTo(t(a)));
 
     final totalOfflinePages = (offlineDevices.length / _pageSize).ceil().clamp(1, 999);
-    final pageStart = _offlinePage * _pageSize;
+    final safePage = _offlinePage.clamp(0, totalOfflinePages - 1);
+    final pageStart = safePage * _pageSize;
     final pageItems = offlineDevices.skip(pageStart).take(_pageSize).toList();
+
+    final lockTime = _lockAdjustedTime(lockDevice);
 
     return Scaffold(
       body: SafeArea(
@@ -508,13 +545,13 @@ class _HomeScreenState extends State<HomeScreen> {
                           subText: lockDevice == null
                               ? '请长按选择门锁'
                               : (_lockShowDuration
-                                  ? (lockDevice.accessTime == null
+                                  ? (lockTime == null
                                       ? '未知时长'
-                                      : '${formatDuration(DateTime.now().difference(lockDevice.accessTime!))}'
+                                      : '${formatDuration(DateTime.now().difference(lockTime))}'
                                           '${lockDevice.active ? "前上线" : "前离线"}')
-                                  : (lockDevice.accessTime == null
+                                  : (lockTime == null
                                       ? '暂无记录'
-                                      : '最后动作 ${_fmtShort(lockDevice.accessTime!)}')),
+                                      : '最后动作 ${_fmtShort(lockTime)}')),
                           onTap: lockDevice == null
                               ? null
                               : () => setState(() => _lockShowDuration = !_lockShowDuration),
@@ -590,14 +627,14 @@ class _HomeScreenState extends State<HomeScreen> {
                               IconButton(
                                 icon: const Icon(Icons.chevron_left),
                                 onPressed:
-                                    _offlinePage > 0 ? () => setState(() => _offlinePage--) : null,
+                                    safePage > 0 ? () => setState(() => _offlinePage = safePage - 1) : null,
                               ),
-                              Text('${_offlinePage + 1} / $totalOfflinePages',
+                              Text('${safePage + 1} / $totalOfflinePages',
                                   style: const TextStyle(fontSize: 12, color: Colors.grey)),
                               IconButton(
                                 icon: const Icon(Icons.chevron_right),
-                                onPressed: _offlinePage < totalOfflinePages - 1
-                                    ? () => setState(() => _offlinePage++)
+                                onPressed: safePage < totalOfflinePages - 1
+                                    ? () => setState(() => _offlinePage = safePage + 1)
                                     : null,
                               ),
                             ],
@@ -625,6 +662,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ? '在线中'
           : '在线${formatDuration(DateTime.now().difference(d.accessTime!))}',
       onFavoriteToggle: () => _toggleFavorite(d),
+      onPermanentToggle: () => _togglePermanent(d),
       onShowDetail: () => _showDetail(d.raw),
       onRename: () => _openRenameDialog(d),
     );
@@ -656,6 +694,7 @@ class _HomeScreenState extends State<HomeScreen> {
         });
       },
       onFavoriteToggle: () => _toggleFavorite(d),
+      onPermanentToggle: () => _togglePermanent(d),
       onShowDetail: () => _showDetail(d.raw),
       onRename: () => _openRenameDialog(d),
     );

@@ -3,6 +3,8 @@ import '../models/device.dart';
 import '../services/storage_service.dart';
 import 'device_picker_screen.dart';
 
+const String appVersion = '0.2.0';
+
 class SettingsScreen extends StatefulWidget {
   final AppConfig config;
   final List<Device> devices;
@@ -178,6 +180,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     selected: widget.config.favoriteMacs,
                     disabledMacs: _excludedMacs,
                     disabledHint: '已设为门锁/子路由，不可选择',
+                    allowManualAdd: true, // 关注设备可能长期不出现，支持手动按MAC添加
                   ),
                 ),
               );
@@ -190,10 +193,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Text(
-              '提示：设备的自定义改名不在这里设置了，长按首页或子路由卡片上的具体设备，'
-              '选"自定义命名"就能改。',
+              '提示：长按首页设备卡片（或子路由卡片）可进行自定义命名、关注、设为常驻、查看详情等操作。',
               style: TextStyle(fontSize: 11.5, color: Theme.of(context).colorScheme.onSurfaceVariant),
             ),
+          ),
+          const SizedBox(height: 20),
+          Center(
+            child: Text('家络看板 v$appVersion',
+                style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.outline)),
           ),
         ],
       ),
