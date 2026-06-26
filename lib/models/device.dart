@@ -137,9 +137,9 @@ class DeviceIcon {
   }
 }
 
-/// 速率格式化：原始单位 KB/s -> 自动换算 B/s / KB/s / MB/s；0 显示 "--"
+/// 速率格式化：原始单位 KB/s -> 自动换算 B/s / KB/s / MB/s；0 显示 "0KB/s"
 String formatRateKBs(double kbs) {
-  if (kbs <= 0) return '--';
+  if (kbs <= 0) return '0KB/s';
   if (kbs < 1) return '${(kbs * 1024).round()}B/s';
   if (kbs < 1024) return '${kbs.toStringAsFixed(kbs < 10 ? 1 : 0)}KB/s';
   return '${(kbs / 1024).toStringAsFixed(1)}MB/s';
@@ -165,3 +165,14 @@ String formatDuration(Duration d) {
   if (hours > 0) return '$hours时$minutes分';
   return '$minutes分';
 }
+
+/// 名称超长直接砍断加省略号，避免布局被挤爆
+String truncateName(String name, {int maxLen = 12}) {
+  if (name.length <= maxLen) return name;
+  return '${name.substring(0, maxLen)}…';
+}
+
+/// 精确时间点格式化，用于离线/门锁时间显示切换
+String formatExactTime(DateTime t) =>
+    '${t.month.toString().padLeft(2, '0')}-${t.day.toString().padLeft(2, '0')} '
+    '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/device.dart';
 import '../services/storage_service.dart';
-import 'naming_screen.dart';
 import 'device_picker_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -39,10 +38,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _persist() {
     widget.config.routerUrl = _urlCtrl.text.trim();
     widget.config.password = _pwdCtrl.text;
-    widget.config.refreshSeconds =
-        int.tryParse(_refreshCtrl.text) ?? widget.config.refreshSeconds;
     widget.onSaved(widget.config);
     StorageService.save(widget.config);
+  }
+
+  /// 刷新间隔最低5秒，输入框失焦或提交时校正
+  void _commitRefreshSeconds() {
+    var v = int.tryParse(_refreshCtrl.text) ?? widget.config.refreshSeconds;
+    if (v < 5) v = 5;
+    _refreshCtrl.text = v.toString();
+    widget.config.refreshSeconds = v;
+    _persist();
   }
 
   String _nameOf(String? mac) {
@@ -51,6 +57,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (d.isEmpty) return mac;
     return d.first.rawDisplayName;
   }
+
+  Set<String> get _excludedMacs => {
+        if (widget.config.lockMac != null) widget.config.lockMac!,
+        if (widget.config.subRouterMac != null) widget.config.subRouterMac!,
+      };
 
   @override
   Widget build(BuildContext context) {
@@ -62,8 +73,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _group([
             _textRow('路由器地址', _urlCtrl, onChanged: (_) => _persist()),
             _textRow('管理员密码', _pwdCtrl, obscure: true, onChanged: (_) => _persist()),
-            _textRow('刷新间隔（秒）', _refreshCtrl,
-                keyboardType: TextInputType.number, onChanged: (_) => _persist()),
+            _textRow('刷新间隔（秒，最低5秒）', _refreshCtrl,
+                keyboardType: TextInputType.number,
+                onSubmitted: (_) => _commitRefreshSeconds(),
+                onChanged: (_) {}),
           ]),
           _group([
             ListTile(
@@ -91,11 +104,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       if (widget.config.subRouterMac != null)
                         widget.config.subRouterMac!
                     },
+                    disabledMacs: {
+                      if (widget.config.lockMac != null) widget.config.lockMac!
+                    },
+                    disabledHint: '已设为门锁，不可选择',
                   ),
                 ),
               );
               if (mac != null) {
-                setState(() => widget.config.subRouterMac = mac.isEmpty ? null : mac);
+                setState(() {
+                  widget.config.subRouterMac = mac.isEmpty ? null : mac;
+                  widget.config.favoriteMacs.remove(mac);
+                  widget.config.permanentMacs.remove(mac);
+                });
                 _persist();
               }
             }),
@@ -110,11 +131,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     selected: {
                       if (widget.config.lockMac != null) widget.config.lockMac!
                     },
+                    disabledMacs: {
+                      if (widget.config.subRouterMac != null)
+                        widget.config.subRouterMac!
+                    },
+                    disabledHint: '已设为子路由，不可选择',
                   ),
                 ),
               );
               if (mac != null) {
-                setState(() => widget.config.lockMac = mac.isEmpty ? null : mac);
+                setState(() {
+                  widget.config.lockMac = mac.isEmpty ? null : mac;
+                  widget.config.favoriteMacs.remove(mac);
+                  widget.config.permanentMacs.remove(mac);
+                });
                 _persist();
               }
             }),
@@ -127,6 +157,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     devices: widget.devices,
                     multi: true,
                     selected: widget.config.permanentMacs,
+                    disabledMacs: _excludedMacs,
+                    disabledHint: '已设为门锁/子路由，不可选择',
                   ),
                 ),
               );
@@ -144,6 +176,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     devices: widget.devices,
                     multi: true,
                     selected: widget.config.favoriteMacs,
+                    disabledMacs: _excludedMacs,
+                    disabledHint: '已设为门锁/子路由，不可选择',
                   ),
                 ),
               );
@@ -153,24 +187,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
               }
             }),
           ]),
-          _group([
-            _navRow('自定义命名', '管理 ›', () async {
-              await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => NamingScreen(
-                    config: widget.config,
-                    devices: widget.devices,
-                    onSaved: (c) {
-                      widget.onSaved(c);
-                      StorageService.save(c);
-                    },
-                  ),
-                ),
-              );
-              setState(() {});
-            }),
-          ]),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              '提示：设备的自定义改名不在这里设置了，长按首页或子路由卡片上的具体设备，'
+              '选"自定义命名"就能改。',
+              style: TextStyle(fontSize: 11.5, color: Theme.of(context).colorScheme.onSurfaceVariant),
+            ),
+          ),
         ],
       ),
     );
@@ -184,7 +208,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _textRow(String label, TextEditingController ctrl,
           {bool obscure = false,
           TextInputType? keyboardType,
-          ValueChanged<String>? onChanged}) =>
+          ValueChanged<String>? onChanged,
+          ValueChanged<String>? onSubmitted}) =>
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         child: TextField(
@@ -192,6 +217,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           obscureText: obscure,
           keyboardType: keyboardType,
           onChanged: onChanged,
+          onSubmitted: onSubmitted,
+          onEditingComplete: () => onSubmitted?.call(ctrl.text),
           decoration: InputDecoration(labelText: label, border: InputBorder.none),
         ),
       );

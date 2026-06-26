@@ -79,8 +79,9 @@ class RouterApi {
 
   /// 登录：获取 csrf token -> nonce -> proof，流程对应 python 版 login()
   Future<void> login() async {
-    final indexResp =
-        await _client.get(Uri.parse('$baseUrl/html/index.html'));
+    final indexResp = await _client
+        .get(Uri.parse('$baseUrl/html/index.html'))
+        .timeout(const Duration(seconds: 8));
     _saveCookies(indexResp);
     final body = indexResp.body;
     final paramMatch =
@@ -133,11 +134,13 @@ class RouterApi {
       'data': data,
       'csrf': {'csrf_param': _csrfParam, 'csrf_token': _csrfToken},
     });
-    final resp = await _client.post(
-      Uri.parse('$baseUrl/api/$name'),
-      headers: _headers,
-      body: body,
-    );
+    final resp = await _client
+        .post(
+          Uri.parse('$baseUrl/api/$name'),
+          headers: _headers,
+          body: body,
+        )
+        .timeout(const Duration(seconds: 8));
     _saveCookies(resp);
     final j = jsonDecode(resp.body) as Map<String, dynamic>;
     if (j['csrf_param'] != null) {
@@ -151,10 +154,12 @@ class RouterApi {
   /// 状态码异常 / 空响应 / 非 JSON / 格式不对 都视为会话过期
   Future<List<dynamic>> getHostInfo() async {
     try {
-      final resp = await _client.get(
-        Uri.parse('$baseUrl/api/system/HostInfo'),
-        headers: _headers,
-      );
+      final resp = await _client
+          .get(
+            Uri.parse('$baseUrl/api/system/HostInfo'),
+            headers: _headers,
+          )
+          .timeout(const Duration(seconds: 8));
       if (resp.statusCode != 200 || resp.body.trim().isEmpty) {
         throw AuthExpiredError('状态码 ${resp.statusCode} 或响应为空');
       }
@@ -173,6 +178,18 @@ class RouterApi {
       rethrow;
     } catch (e) {
       throw AuthExpiredError('请求异常: $e');
+    }
+  }
+
+  /// 尽力而为地登出，释放路由器的并发登录名额。
+  /// 路由器固件没有在python脚本里出现这个接口，名字是猜的，
+  /// 如果你这台路由器接口名不一样，把这里改成实际接口名即可；
+  /// 就算失败也不抛错，不影响主流程。
+  Future<void> logout() async {
+    try {
+      await _apiPost('system/user_logout', {}).timeout(const Duration(seconds: 4));
+    } catch (_) {
+      // 忽略：登出本身是锦上添花，不应该影响其他流程
     }
   }
 

@@ -9,6 +9,7 @@ class StatusCard extends StatelessWidget {
   final Color? mainTextColor;
   final String subText;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
 
   const StatusCard({
     super.key,
@@ -19,6 +20,7 @@ class StatusCard extends StatelessWidget {
     this.iconColor,
     this.mainTextColor,
     this.onTap,
+    this.onLongPress,
   });
 
   @override
@@ -29,6 +31,7 @@ class StatusCard extends StatelessWidget {
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
           onTap: onTap,
+          onLongPress: onLongPress,
           child: Padding(
             padding: const EdgeInsets.all(14),
             child: Column(
@@ -37,8 +40,8 @@ class StatusCard extends StatelessWidget {
                 Row(
                   children: [
                     SizedBox(
-                      width: 18,
-                      child: Icon(icon, size: 14, color: iconColor ?? scheme.onSurfaceVariant),
+                      width: 20,
+                      child: Icon(icon, size: 16, color: iconColor ?? scheme.onSurfaceVariant),
                     ),
                     const SizedBox(width: 4),
                     Text(label,
@@ -76,7 +79,9 @@ class RouterStatusCard extends StatelessWidget {
   final int rssi;
   final Color rssiColor;
   final String durationText;
+  final int negotiatedRate; // 协商速率 Mbps
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
 
   const RouterStatusCard({
     super.key,
@@ -91,7 +96,9 @@ class RouterStatusCard extends StatelessWidget {
     required this.rssi,
     required this.rssiColor,
     required this.durationText,
+    required this.negotiatedRate,
     this.onTap,
+    this.onLongPress,
   });
 
   @override
@@ -117,6 +124,7 @@ class RouterStatusCard extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: onTap,
+        onLongPress: onLongPress,
         child: Padding(
           padding: const EdgeInsets.all(14),
           child: Column(
@@ -132,8 +140,15 @@ class RouterStatusCard extends StatelessWidget {
                 ),
               ]),
               const SizedBox(height: 8),
-              Text(online ? '在线 · $ip' : '离线',
-                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+              Row(children: [
+                Text(online ? '在线 · $ip' : '离线',
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                if (online) ...[
+                  const SizedBox(width: 8),
+                  Text('🔗${negotiatedRate}Mbps',
+                      style: TextStyle(fontSize: 11.5, color: scheme.onSurfaceVariant)),
+                ],
+              ]),
               const SizedBox(height: 10),
               Row(children: [
                 item('实时速率', Text('↓$downRate ↑$upRate', style: valueStyle)),

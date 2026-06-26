@@ -21,10 +21,23 @@ class AppTheme {
   }
 
   static ThemeData _build(ColorScheme scheme) {
-    return ThemeData(
+    // 简体中文字体回退链：Windows/Android/其他平台都优先用简中字体，
+    // 避免系统按 Unicode 统一码默认挑到繁体字形（比如"关"/"门"显示成台标）。
+    const fontFallback = [
+      'Microsoft YaHei', // Windows
+      'PingFang SC', // macOS/iOS（万一之后做了）
+      'Noto Sans SC', // Android / Linux 通用简中字体
+      'Heiti SC',
+      'sans-serif',
+    ];
+    final base = ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
+      fontFamilyFallback: fontFallback,
+    );
+    return base.copyWith(
       scaffoldBackgroundColor: scheme.surface,
+      textTheme: base.textTheme.apply(fontFamilyFallback: fontFallback),
       cardTheme: CardThemeData(
         elevation: 0,
         margin: EdgeInsets.zero,
