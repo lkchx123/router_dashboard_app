@@ -2,7 +2,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <application
         android:usesCleartextTraffic="true"
-        android:label="router_dashboard"
+        android:label="家络看板"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

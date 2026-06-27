@@ -57,7 +57,6 @@ class Device {
       rate: toI(j['rate']),
       rssi: toI(j['rssi']),
       isWifi6: toI(j['Feature']) == 1,
-      // 路由器上报的是 KB/s
       upRateKBs: toD(j['UpRate']),
       downRateKBs: toD(j['DownRate']),
       rxKB: toD(j['RxKBytes']),
@@ -87,52 +86,65 @@ class Device {
   }
 }
 
-/// 图标判断：方案 B —— 自定义图标 > DevBrands(品牌) > IconType > 默认
+/// 设备图标 + 主题色：方案为 自定义图标 > DevBrands(品牌) > IconType > 默认
+class DeviceIconStyle {
+  final IconData icon;
+  final Color color;
+  const DeviceIconStyle(this.icon, this.color);
+}
+
 class DeviceIcon {
   static IconData resolve(Device d, {String? customIconKey}) {
-    if (customIconKey != null) {
-      return _byKey(customIconKey);
-    }
+    return style(d, customIconKey: customIconKey).icon;
+  }
+
+  static DeviceIconStyle style(Device d, {String? customIconKey}) {
+    if (customIconKey != null) return _byKey(customIconKey);
+
     final brand = d.devBrand.toLowerCase();
-    if (brand.contains('apple')) return Icons.phone_iphone;
-    if (brand.isNotEmpty) return Icons.smartphone; // 安卓品牌机统一用手机图标
+    if (brand.contains('apple')) {
+      return const DeviceIconStyle(Icons.phone_iphone, Color(0xFF6B7CC7));
+    }
+    if (brand.isNotEmpty) {
+      return const DeviceIconStyle(Icons.smartphone, Color(0xFF2E8B57));
+    }
 
     switch (d.iconType) {
       case 'mobile':
-        return Icons.smartphone;
+        return const DeviceIconStyle(Icons.smartphone, Color(0xFF2E8B57));
       case 'Android':
-        return Icons.android;
+        return const DeviceIconStyle(Icons.android, Color(0xFF7CB342));
       case 'television':
-        return Icons.tv;
+        return const DeviceIconStyle(Icons.tv, Color(0xFF8E5BC2));
       case 'computer':
-        return Icons.computer;
+        return const DeviceIconStyle(Icons.computer, Color(0xFF2E9CB5));
       case 'WiFi Loudspeaker Box':
-        return Icons.speaker;
+        return const DeviceIconStyle(Icons.speaker, Color(0xFFD08A2E));
       default:
-        return Icons.help_outline; // 未知设备，对应预览图里的 📦
+        return const DeviceIconStyle(Icons.help_outline, Color(0xFF8A8F84));
     }
   }
 
-  static IconData _byKey(String key) {
+  static DeviceIconStyle _byKey(String key) {
     switch (key) {
       case 'phone':
-        return Icons.smartphone;
+        return const DeviceIconStyle(Icons.smartphone, Color(0xFF2E8B57));
       case 'iphone':
-        return Icons.phone_iphone;
+        return const DeviceIconStyle(Icons.phone_iphone, Color(0xFF6B7CC7));
       case 'tv':
-        return Icons.tv;
+        return const DeviceIconStyle(Icons.tv, Color(0xFF8E5BC2));
       case 'computer':
-        return Icons.computer;
+        return const DeviceIconStyle(Icons.computer, Color(0xFF2E9CB5));
       case 'speaker':
-        return Icons.speaker;
+        return const DeviceIconStyle(Icons.speaker, Color(0xFFD08A2E));
       case 'router':
-        return Icons.router;
+        return const DeviceIconStyle(Icons.router, Color(0xFF3D6E54));
       case 'lock':
-        return Icons.lock;
+        return const DeviceIconStyle(Icons.lock, Color(0xFFC5402F));
       case 'tablet':
-        return Icons.tablet_mac;
+        return const DeviceIconStyle(Icons.tablet_mac, Color(0xFF6B7CC7));
       default:
-        return Icons.devices_other;
+        return const DeviceIconStyle(Icons.devices_other, Color(0xFF8A8F84));
     }
   }
 }
@@ -155,7 +167,7 @@ String formatTrafficKB(double kb) {
   return '${gb.toStringAsFixed(1)}GB';
 }
 
-/// 离线/在线时长格式化，对齐 python 版 format_duration 逻辑
+/// 离线/在线时长格式化
 String formatDuration(Duration d) {
   if (d.isNegative || d.inSeconds <= 0) return '刚刚';
   final days = d.inDays;
@@ -166,13 +178,13 @@ String formatDuration(Duration d) {
   return '$minutes分';
 }
 
-/// 名称超长直接砍断加省略号，避免布局被挤爆
-String truncateName(String name, {int maxLen = 12}) {
-  if (name.length <= maxLen) return name;
-  return '${name.substring(0, maxLen)}…';
+/// 精确时间点格式化；跨年时带上年份，避免歧义
+String formatExactTime(DateTime t) {
+  final now = DateTime.now();
+  final mmdd = '${t.month.toString().padLeft(2, '0')}-${t.day.toString().padLeft(2, '0')}';
+  final hm = '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+  if (t.year != now.year) {
+    return '${t.year}-$mmdd $hm';
+  }
+  return '$mmdd $hm';
 }
-
-/// 精确时间点格式化，用于离线/门锁时间显示切换
-String formatExactTime(DateTime t) =>
-    '${t.month.toString().padLeft(2, '0')}-${t.day.toString().padLeft(2, '0')} '
-    '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';

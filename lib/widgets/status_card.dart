@@ -1,4 +1,46 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'sparkline.dart';
+
+/// MD3 风格半透明玻璃卡片底座，三张首屏状态卡统一用这个背景
+class GlassCard extends StatelessWidget {
+  final Widget child;
+  final Color tint;
+  final EdgeInsets padding;
+
+  const GlassCard({
+    super.key,
+    required this.child,
+    required this.tint,
+    this.padding = const EdgeInsets.all(14),
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                tint.withOpacity(0.16),
+                scheme.surface.withOpacity(0.55),
+              ],
+            ),
+            border: Border.all(color: scheme.outlineVariant.withOpacity(0.5), width: 1),
+          ),
+          child: Padding(padding: padding, child: child),
+        ),
+      ),
+    );
+  }
+}
 
 /// 简单状态卡（门锁 / 个人设备），固定宽度图标对齐
 class StatusCard extends StatelessWidget {
@@ -26,14 +68,16 @@ class StatusCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final tint = iconColor ?? scheme.primary;
     return Expanded(
-      child: Card(
+      child: Material(
+        color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(20),
           onTap: onTap,
           onLongPress: onLongPress,
-          child: Padding(
-            padding: const EdgeInsets.all(14),
+          child: GlassCard(
+            tint: tint,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -41,22 +85,25 @@ class StatusCard extends StatelessWidget {
                   children: [
                     SizedBox(
                       width: 20,
-                      child: Icon(icon, size: 16, color: iconColor ?? scheme.onSurfaceVariant),
+                      child: Icon(icon, size: 16, color: tint),
                     ),
                     const SizedBox(width: 4),
                     Text(label,
-                        style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
+                        style: TextStyle(
+                            fontSize: 11,
+                            letterSpacing: 0.3,
+                            color: scheme.onSurfaceVariant)),
                   ],
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
                 Text(mainText,
                     style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                        color: mainTextColor)),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: mainTextColor ?? scheme.onSurface)),
                 const SizedBox(height: 4),
                 Text(subText,
-                    style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
+                    style: TextStyle(fontSize: 11.5, color: scheme.onSurfaceVariant)),
               ],
             ),
           ),
@@ -66,7 +113,7 @@ class StatusCard extends StatelessWidget {
   }
 }
 
-/// 子路由状态卡：信息更全，IP/实时速率/累计流量/RSSI/连接时长
+/// 子路由状态卡：信息更全，IP/实时速率/累计流量/RSSI/连接时长/协商速率
 class RouterStatusCard extends StatelessWidget {
   final String name;
   final String band; // "5GHz" / "2.4GHz"
@@ -80,6 +127,7 @@ class RouterStatusCard extends StatelessWidget {
   final Color rssiColor;
   final String durationText;
   final int negotiatedRate; // 协商速率 Mbps
+  final List<double> rateHistory; // 用于迷你折线图的下载速率历史
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
 
@@ -97,6 +145,7 @@ class RouterStatusCard extends StatelessWidget {
     required this.rssiColor,
     required this.durationText,
     required this.negotiatedRate,
+    this.rateHistory = const [],
     this.onTap,
     this.onLongPress,
   });
@@ -120,13 +169,14 @@ class RouterStatusCard extends StatelessWidget {
         fontFamily: 'monospace',
         color: scheme.onSurface);
 
-    return Card(
+    return Material(
+      color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         onTap: onTap,
         onLongPress: onLongPress,
-        child: Padding(
-          padding: const EdgeInsets.all(14),
+        child: GlassCard(
+          tint: scheme.tertiary,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -140,24 +190,32 @@ class RouterStatusCard extends StatelessWidget {
                 ),
               ]),
               const SizedBox(height: 8),
-              Row(children: [
-                Text(online ? '在线 · $ip' : '离线',
-                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-                if (online) ...[
-                  const SizedBox(width: 8),
-                  Text('🔗${negotiatedRate}Mbps',
-                      style: TextStyle(fontSize: 11.5, color: scheme.onSurfaceVariant)),
+              Text(online ? '在线 · $ip' : '离线',
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 10),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Text('实时速率',
+                            style: TextStyle(fontSize: 10, color: scheme.onSurfaceVariant)),
+                        const SizedBox(width: 6),
+                        if (online && rateHistory.length >= 2)
+                          Sparkline(values: rateHistory, color: scheme.tertiary),
+                      ],
+                    ),
+                  ),
                 ],
-              ]),
+              ),
+              const SizedBox(height: 2),
+              Text('↓$downRate ↑$upRate', style: valueStyle),
               const SizedBox(height: 10),
               Row(children: [
-                item('实时速率', Text('↓$downRate ↑$upRate', style: valueStyle)),
                 item('累计流量', Text('↓$downTraffic ↑$upTraffic', style: valueStyle)),
-              ]),
-              const SizedBox(height: 8),
-              Row(children: [
                 item(
-                  '信号 RSSI',
+                  '信号 / 协商速率',
                   Row(children: [
                     Container(
                       width: 8,
@@ -166,10 +224,14 @@ class RouterStatusCard extends StatelessWidget {
                       decoration: BoxDecoration(color: rssiColor, shape: BoxShape.circle),
                     ),
                     Text('$rssi', style: valueStyle),
+                    const SizedBox(width: 6),
+                    Text('${negotiatedRate}Mbps',
+                        style: TextStyle(fontSize: 10.5, color: scheme.onSurfaceVariant)),
                   ]),
                 ),
-                item('连接时长', Text(durationText, style: valueStyle)),
               ]),
+              const SizedBox(height: 8),
+              item('连接时长', Text(durationText, style: valueStyle)),
             ],
           ),
         ),

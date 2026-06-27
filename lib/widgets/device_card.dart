@@ -96,161 +96,152 @@ class DeviceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final icon = DeviceIcon.resolve(device, customIconKey: customIconKey);
+    final iconStyle = DeviceIcon.style(device, customIconKey: customIconKey);
     final rssiColor = StatusColors.rssi(context, device.rssi);
 
     final hasCustom = customName != null && customName!.trim().isNotEmpty;
-    final fullShownName = hasCustom ? customName! : device.rawDisplayName;
-    final fullOriginalName = device.rawDisplayName;
+    final shownName = hasCustom ? customName! : device.rawDisplayName;
+    final originalName = device.rawDisplayName;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        // 离线卡片整卡可点，切换"相对时长 / 精确时间点"显示
-        onTap: online ? null : onToggleOfflineTime,
+        onTap: online ? null : onToggleOfflineTime, // 离线卡片整卡可点，切换相对时长/精确时间点
         onLongPress: () => _openMenu(context),
         child: Padding(
           padding: const EdgeInsets.all(14),
           child: ConstrainedBox(
-            // 固定最小高度，避免不同设备因标签数量不同导致卡片高度参差、翻页按钮跳动
             constraints: const BoxConstraints(minHeight: 78),
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                // 名字区域大致占可用宽度的一半，按比例截断，而不是写死字符数
-                final nameAreaWidth = (constraints.maxWidth - 46 - 13 - 6 - 60) * 0.62;
-                final shownName = truncateName(fullShownName,
-                    maxLen: (nameAreaWidth / 9).floor().clamp(4, 40));
-                final originalName = truncateName(fullOriginalName,
-                    maxLen: (nameAreaWidth / 18).floor().clamp(3, 20));
-
-                return Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Container(
-                      width: 46,
-                      height: 46,
-                      decoration: BoxDecoration(
-                        color: scheme.primaryContainer,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Icon(icon, size: 24, color: scheme.primary),
-                    ),
-                    const SizedBox(width: 13),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: iconStyle.color.withOpacity(0.16),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(iconStyle.icon, size: 24, color: iconStyle.color),
+                ),
+                const SizedBox(width: 13),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
                         children: [
-                          Row(
-                            children: [
-                              if (isPermanent)
-                                const Padding(
-                                  padding: EdgeInsets.only(right: 4),
-                                  child: Icon(Icons.push_pin, size: 13, color: Color(0xFF6E8B7A)),
-                                ),
-                              if (isFavorite)
-                                const Padding(
-                                  padding: EdgeInsets.only(right: 4),
-                                  child: Icon(Icons.star, size: 14, color: Color(0xFFFFC107)),
-                                ),
-                              Expanded(
-                                child: Text.rich(
-                                  TextSpan(children: [
-                                    TextSpan(
-                                        text: shownName,
-                                        style: const TextStyle(
-                                            fontSize: 15.5, fontWeight: FontWeight.w700)),
-                                    if (hasCustom)
-                                      TextSpan(
-                                          text: ' ($originalName)',
-                                          style: TextStyle(
-                                              fontSize: 12, color: scheme.onSurfaceVariant)),
-                                  ]),
-                                  overflow: TextOverflow.ellipsis,
-                                  maxLines: 1,
-                                ),
-                              ),
-                            ],
+                          if (isPermanent)
+                            const Padding(
+                              padding: EdgeInsets.only(right: 4),
+                              child: Icon(Icons.push_pin, size: 13, color: Color(0xFF6E8B7A)),
+                            ),
+                          if (isFavorite)
+                            const Padding(
+                              padding: EdgeInsets.only(right: 4),
+                              child: Icon(Icons.star, size: 14, color: Color(0xFFFFC107)),
+                            ),
+                          Expanded(
+                            // 名字用自适应省略而不是手动截字数，窗口变宽时也能完整显示
+                            child: Text.rich(
+                              TextSpan(children: [
+                                TextSpan(
+                                    text: shownName,
+                                    style: const TextStyle(
+                                        fontSize: 15.5,
+                                        fontWeight: FontWeight.w700,
+                                        letterSpacing: 0.1)),
+                                if (hasCustom)
+                                  TextSpan(
+                                      text: ' ($originalName)',
+                                      style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w400,
+                                          color: scheme.onSurfaceVariant)),
+                              ]),
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
+                            ),
                           ),
-                          const SizedBox(height: 2),
-                          Text(device.mac,
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(device.mac,
+                          style: TextStyle(
+                              fontFamily: 'monospace',
+                              fontSize: 10.5,
+                              letterSpacing: 0.2,
+                              color: scheme.onSurfaceVariant)),
+                      const SizedBox(height: 4),
+                      if (online)
+                        Text(
+                          onlineDurationText ?? '',
+                          style: TextStyle(fontSize: 11.5, color: scheme.onSurfaceVariant),
+                        )
+                      else
+                        Text(offlineText ?? '',
+                            style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: scheme.onSurfaceVariant)),
+                      if (online)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(
+                            '↓${formatRateKBs(device.downRateKBs)} ↑${formatRateKBs(device.upRateKBs)}',
+                            style: TextStyle(
+                                fontSize: 11,
+                                fontFamily: 'monospace',
+                                color: scheme.onSurfaceVariant),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 6),
+                if (online)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      if (device.isWifi6)
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 5),
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: scheme.tertiaryContainer,
+                            borderRadius: BorderRadius.circular(5),
+                          ),
+                          child: Text('WiFi 6',
                               style: TextStyle(
-                                  fontFamily: 'monospace',
-                                  fontSize: 11,
-                                  color: scheme.onSurfaceVariant)),
-                          const SizedBox(height: 4),
-                          if (online)
-                            Text(
-                              onlineDurationText ?? '',
-                              style: TextStyle(fontSize: 11.5, color: scheme.onSurfaceVariant),
-                            )
-                          else
-                            Text(offlineText ?? '',
-                                style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                    color: scheme.onSurfaceVariant)),
-                          if (online)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 2),
-                              child: Text(
-                                '↓${formatRateKBs(device.downRateKBs)} ↑${formatRateKBs(device.upRateKBs)}',
-                                style: TextStyle(
-                                    fontSize: 11,
-                                    fontFamily: 'monospace',
-                                    color: scheme.onSurfaceVariant),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    if (online)
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.bold,
+                                  color: scheme.onTertiaryContainer)),
+                        ),
+                      Row(
                         children: [
-                          if (device.isWifi6)
-                            Container(
-                              margin: const EdgeInsets.only(bottom: 5),
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                              decoration: BoxDecoration(
-                                color: scheme.tertiaryContainer,
-                                borderRadius: BorderRadius.circular(5),
-                              ),
-                              child: Text('WiFi 6',
-                                  style: TextStyle(
-                                      fontSize: 9,
-                                      fontWeight: FontWeight.bold,
-                                      color: scheme.onTertiaryContainer)),
-                            ),
-                          Row(
-                            children: [
-                              Container(
-                                width: 10,
-                                height: 10,
-                                decoration: BoxDecoration(
-                                    color: rssiColor, shape: BoxShape.circle),
-                              ),
-                              const SizedBox(width: 5),
-                              Text('${device.rssi}',
-                                  style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.bold,
-                                      fontFamily: 'monospace',
-                                      color: scheme.onSurfaceVariant)),
-                              const SizedBox(width: 6),
-                              Text('🔗${device.rate}Mbps',
-                                  style: TextStyle(
-                                      fontSize: 10, color: scheme.onSurfaceVariant)),
-                            ],
+                          Container(
+                            width: 10,
+                            height: 10,
+                            decoration:
+                                BoxDecoration(color: rssiColor, shape: BoxShape.circle),
                           ),
+                          const SizedBox(width: 5),
+                          Text('${device.rssi}',
+                              style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  fontFamily: 'monospace',
+                                  color: scheme.onSurfaceVariant)),
                         ],
                       ),
-                  ],
-                );
-              },
+                      const SizedBox(height: 3),
+                      Text('${device.rate}Mbps', // 协商速率放到 RSSI 正下方
+                          style: TextStyle(fontSize: 10, color: scheme.onSurfaceVariant)),
+                    ],
+                  ),
+              ],
             ),
           ),
         ),
